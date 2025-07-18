@@ -1,0 +1,120 @@
+plugins {
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+}
+
+android {
+    namespace 'sergeyb.articles.nav_dynamic_links'
+    compileSdk 35
+
+    sourceSets {
+        production {
+            res.srcDirs += 'build/generated/local/navigation_proccessed/production/'
+        }
+
+        staging {
+            res.srcDirs += 'build/generated/local/navigation_proccessed/staging/'
+        }
+    }
+
+    defaultConfig {
+        applicationId "sergeyb.articles.nav_dynamic_links"
+        minSdk 24
+        targetSdk 35
+        versionCode 1
+        versionName "1.0"
+
+        manifestPlaceholders += [
+                deep_link_nav_sign_in: "unexistingApp://signin"
+        ]
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    flavorDimensions = ["environment"]
+    productFlavors {
+        production {
+            dimension "environment"
+            manifestPlaceholders.deep_link_nav_sign_in = "mySuperApp.com/signin"
+        }
+        staging {
+            dimension "environment"
+            manifestPlaceholders.deep_link_nav_sign_in = "mySuperApp-staging.com/signin"
+        }
+    }
+
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+    kotlinOptions {
+        jvmTarget = '11'
+    }
+}
+
+dependencies {
+
+    implementation libs.androidx.core.ktx
+    implementation libs.androidx.lifecycle.runtime.ktx
+    implementation libs.androidx.fragment.ktx
+    implementation libs.androidx.navigation.fragment
+}
+
+def placeholders // capture manifest placeholders for a specific flavor
+def flavorName // capture specific flavour name to determine output directory
+tasks.register("dispatchNavigationPlacehoders") {
+    def generatedNavigationDir = new File(layout.buildDirectory.get().asFile, "generated/local/navigation_proccessed") // directory under which our processed navigation graphs will be saved
+
+
+    doLast {
+        def targetDir = new File(generatedNavigationDir, "$flavorName/navigation")
+
+
+        logger.lifecycle("Output directory: $targetDir")
+        logger.lifecycle("Placeholders: ${placeholders.toString()}")
+
+
+        if (targetDir.exists()) {
+            targetDir.delete()
+        }
+        targetDir.mkdirs()
+
+
+        fileTree("src/main/res").matching {
+            include "**/navigation/*.xml"
+        }.visit { FileVisitDetails details ->
+            if (!details.isDirectory()) {
+                def navXmlFile = details.file
+                logger.lifecycle("Replacing placeholders in ${navXmlFile.toString()}")
+
+
+                def content = navXmlFile.getText('UTF-8')
+                placeholders.each { entry ->
+                    content = content.replaceAll("\\\$\\{${entry.key}\\}", entry.value)
+                }
+
+
+                def targetFile = new File(targetDir, navXmlFile.name)
+                targetFile.write(content, 'UTF-8')
+            }
+        }
+    }
+}
+
+afterEvaluate {
+    android.applicationVariants.configureEach { variant ->
+        variant.outputs.each { output ->
+            variant.getPreBuildProvider().get().dependsOn {
+                flavorName = variant.getFlavorName()
+                placeholders = variant.mergedFlavor.manifestPlaceholders
+                dispatchNavigationPlacehoders
+            }
+        }
+    }
+}
