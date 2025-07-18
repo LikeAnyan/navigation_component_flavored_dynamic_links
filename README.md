@@ -1,1 +1,1 @@
-While runnning the app, make sure to manually verify the supported links. Otherwise, u won't be able to open corresponding links (mySuperApp.com/signin and mySuperApp-staging.com/signin) using the app.
+While running the app, make sure to manually verify them in the app's settings on ur device. Otherwise, you won't be able to open the corresponding links (mySuperApp.com/signin and mySuperApp-staging.com/signin) using the app.
